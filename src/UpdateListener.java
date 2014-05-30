@@ -2,7 +2,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.net.DatagramPacket;
-import java.util.HashMap;
 
 public class UpdateListener implements Runnable {
 
@@ -37,6 +36,8 @@ public class UpdateListener implements Runnable {
         if (router.stabilisationCount == 9) {
           router.printShortestRoutes();
         }
+
+        router.lastMsg.put(dv.id, System.currentTimeMillis());
 
       } catch (IOException e) {
         e.printStackTrace();

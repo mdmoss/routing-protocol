@@ -23,6 +23,9 @@ public class DistanceVector implements Serializable {
     for (Character k : that.distances.keySet()) {
       if (!this.distances.containsKey(k) || !this.distances.get(k).equals(that.distances.get(k))) return false;
     }
+    for (Character k : this.distances.keySet()) {
+      if (!that.distances.containsKey(k) || !that.distances.get(k).equals(this.distances.get(k))) return false;
+    }
     return true;
   }
 

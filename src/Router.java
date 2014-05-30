@@ -21,6 +21,7 @@ public class Router {
 
   Timer hbCheck;
   final Map<Character, Long> lastMsg = new HashMap<Character, Long>();
+  ArrayList<Character> deadlist = new ArrayList<Character>();
 
   public Router(char id, int port, Map<Character, Neighbor> neighbors, boolean poisonedReverse) throws SocketException {
     this.id = id;
@@ -37,7 +38,7 @@ public class Router {
     new Thread(new UpdateListener(this)).start();
 
     scheduleUpdate();
-    //scheduleHeartbeatCheck();
+    scheduleHeartbeatCheck();
   }
 
   @Override
@@ -93,7 +94,7 @@ public class Router {
     );
   }
 
-  /*public void scheduleHeartbeatCheck() {
+  public void scheduleHeartbeatCheck() {
     assert(hbCheck == null);
 
     hbCheck = new Timer();
@@ -103,28 +104,27 @@ public class Router {
         ArrayList<Neighbor> neibs = new ArrayList<Neighbor>(neighbors.values());
         for (Neighbor n : neibs) {
           if (System.currentTimeMillis() - lastMsg.get(n.id) > 17000) {
-            debug(String.format("Heartbeat timeout from %c ************************************", n.id));
-            synchronized (routingTable) {
-              routingTable.put(n.id, new Route(n.id, n.id, Float.MAX_VALUE));
-              neighbors.remove(n.id);
-            }
+            neighbors.remove(n.id);
+            neighborDVs.remove(n.id);
+            deadlist.add(n.id);
           }
         }
       }
     },
     0,
     1000);
-  }*/
+  }
 
   private Collection<Route> routeSet() {
     Set<Character> nodeSet = new HashSet<Character>();
 
-    /* Add everything we know about, and remove ourselves */
+    /* Add everything we know about, and remove ourselves and known-down nodes */
     nodeSet.addAll(neighbors.keySet());
     for (DistanceVector dv : neighborDVs.values()) {
       nodeSet.addAll(dv.distances.keySet());
     }
     nodeSet.remove(this.id);
+    nodeSet.removeAll(deadlist);
 
     /* In-place only sort. How anyone can stand this language is beyond me */
     ArrayList<Character> nodes = new ArrayList<Character>(nodeSet);
