@@ -34,7 +34,7 @@ public class UpdateListener implements Runnable {
         }
 
         if (router.stabilisationCount == 9) {
-          router.printShortestRoutes();
+          router.stabilise();
         }
 
         router.lastMsg.put(dv.id, System.currentTimeMillis());

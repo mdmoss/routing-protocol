@@ -21,7 +21,9 @@ public class Router {
 
   Timer hbCheck;
   final Map<Character, Long> lastMsg = new HashMap<Character, Long>();
-  ArrayList<Character> deadlist = new ArrayList<Character>();
+  ArrayList<Character> deadList = new ArrayList<Character>();
+
+  boolean hasStabilised = false;
 
   public Router(char id, int port, Map<Character, Neighbor> neighbors, boolean poisonedReverse) throws SocketException {
     this.id = id;
@@ -37,7 +39,11 @@ public class Router {
     routeUpdateSock = new DatagramSocket(port);
     new Thread(new UpdateListener(this)).start();
 
-    scheduleUpdate();
+    if (poisonedReverse) {
+      schedulePoisonedUpdate();
+    } else {
+      scheduleUpdate();
+    }
     scheduleHeartbeatCheck();
   }
 
@@ -94,6 +100,50 @@ public class Router {
     );
   }
 
+  public void schedulePoisonedUpdate() {
+    assert(update == null);
+
+    update = new Timer();
+    update.scheduleAtFixedRate(new TimerTask() {
+                                 @Override
+                                 public void run() {
+
+                                   for (Neighbor n : neighbors.values()) {
+
+                                     try {
+                                       ByteArrayOutputStream out = new ByteArrayOutputStream();
+                                       ObjectOutputStream obj = new ObjectOutputStream(out);
+                                       synchronized (neighborDVs) {
+                                         HashMap<Character, Float> distances = new HashMap<Character, Float>();
+                                         for (Route r : routeSet()) {
+                                           if (r.via == n.id) {
+                                             distances.put(r.dest, Float.MAX_VALUE);
+                                           } else {
+                                             distances.put(r.dest, r.cost);
+                                           }
+                                         }
+                                         DistanceVector dv = new DistanceVector(id, distances);
+                                         obj.writeObject(dv);
+                                       }
+
+                                       DatagramPacket p = new DatagramPacket(out.toByteArray(), out.size());
+                                       DatagramSocket sock = new DatagramSocket();
+                                       p.setAddress(InetAddress.getLocalHost());
+                                       p.setPort(n.port);
+                                       sock.send(p);
+
+                                     } catch (IOException e) {
+                                       e.printStackTrace();
+                                     }
+
+                                   }
+                                 }
+                               },
+      0,
+      5000
+    );
+  }
+
   public void scheduleHeartbeatCheck() {
     assert(hbCheck == null);
 
@@ -106,7 +156,7 @@ public class Router {
           if (System.currentTimeMillis() - lastMsg.get(n.id) > 17000) {
             neighbors.remove(n.id);
             neighborDVs.remove(n.id);
-            deadlist.add(n.id);
+            deadList.add(n.id);
           }
         }
       }
@@ -124,7 +174,7 @@ public class Router {
       nodeSet.addAll(dv.distances.keySet());
     }
     nodeSet.remove(this.id);
-    nodeSet.removeAll(deadlist);
+    nodeSet.removeAll(deadList);
 
     /* In-place only sort. How anyone can stand this language is beyond me */
     ArrayList<Character> nodes = new ArrayList<Character>(nodeSet);
@@ -138,14 +188,14 @@ public class Router {
 
       if (neighbors.containsKey(n)) {
         via = n;
-        distance = neighbors.get(n).cost;
+        distance = neighborCost(n);
       }
 
       for (Character neighbor : neighborDVs.keySet()) {
         if (neighborDVs.get(neighbor).distances.containsKey(n) &&
-            neighborDVs.get(neighbor).distances.get(n) + neighbors.get(neighbor).cost < distance) {
+            neighborDVs.get(neighbor).distances.get(n) + neighborCost(neighbor) < distance) {
           via = neighbor;
-          distance = neighborDVs.get(neighbor).distances.get(n) + neighbors.get(neighbor).cost;
+          distance = neighborDVs.get(neighbor).distances.get(n) + neighborCost(neighbor);
         }
       }
       res.add(new Route(n, via, distance));
@@ -162,5 +212,14 @@ public class Router {
 
   public void debug(String msg) {
     System.err.println(String.format("%c: %s", id, msg));
+  }
+
+  public void stabilise() {
+    printShortestRoutes();
+    hasStabilised = true;
+  }
+
+  private float neighborCost(Character n) {
+    return hasStabilised? neighbors.get(n).updatedCost : neighbors.get(n).cost;
   }
 }

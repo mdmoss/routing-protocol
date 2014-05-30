@@ -29,19 +29,36 @@ public class dv_routing {
     int numNeighbors = Integer.parseInt(reader.readLine());
     HashMap<Character, Neighbor> neighbors = new HashMap<Character, Neighbor>();
 
-    Pattern p = Pattern.compile("([A-Z]) ([-+]?[0-9]*\\.?[0-9]+) ([0-9]+)");
-    for (int i = 0; i < numNeighbors; i++) {
-      Matcher m = p.matcher(reader.readLine());
-      if (m.find()) {
-        Neighbor n = new Neighbor(m.group(1).charAt(0), Float.parseFloat(m.group(2)), Integer.parseInt(m.group(3)));
-        neighbors.put(m.group(1).charAt(0), n);
-      } else {
-        System.err.println("Spec violation: invalid config file format");
-        System.exit(1);
+    boolean poisoned = (args.length == 4 && args[3].equals("-p"));
+
+    if (poisoned) {
+      Pattern p = Pattern.compile("([A-Z]) ([-+]?[0-9]*\\.?[0-9]+) ([-+]?[0-9]*\\.?[0-9]+) ([0-9]+)");
+      for (int i = 0; i < numNeighbors; i++) {
+        Matcher m = p.matcher(reader.readLine());
+        if (m.find()) {
+          /* Cost == updatedCost */
+          Neighbor n = new Neighbor(m.group(1).charAt(0), Float.parseFloat(m.group(2)), Integer.parseInt(m.group(4)), Float.parseFloat(m.group(3)));
+          neighbors.put(m.group(1).charAt(0), n);
+        } else {
+          System.err.println("Spec violation: invalid config file format");
+          System.exit(1);
+        }
+      }
+    } else {
+      Pattern p = Pattern.compile("([A-Z]) ([-+]?[0-9]*\\.?[0-9]+) ([0-9]+)");
+      for (int i = 0; i < numNeighbors; i++) {
+        Matcher m = p.matcher(reader.readLine());
+        if (m.find()) {
+          /* Cost == updatedCost */
+          Neighbor n = new Neighbor(m.group(1).charAt(0), Float.parseFloat(m.group(2)), Integer.parseInt(m.group(3)), Float.parseFloat(m.group(2)));
+          neighbors.put(m.group(1).charAt(0), n);
+        } else {
+          System.err.println("Spec violation: invalid config file format");
+          System.exit(1);
+        }
       }
     }
 
-    boolean poisoned = (args.length == 4 && args[0].equals("-p"));
 
     new Router(id, port, neighbors, poisoned).run();
   }
