@@ -21,40 +21,21 @@ public class UpdateListener implements Runnable {
       try {
         router.routeUpdateSock.receive(p);
         ByteArrayInputStream bytes = new ByteArrayInputStream(buf);
-        RoutesMsg rec = (RoutesMsg) new ObjectInputStream(bytes).readObject();
+        DistanceVector dv = (DistanceVector) new ObjectInputStream(bytes).readObject();
 
-        boolean updated = false;
-        synchronized (router.routingTable) {
-          for (Route r : rec.routes) {
-            if (r.dest == router.id) continue; /* That's me! */
-
-            if (!router.routingTable.containsKey(r.dest)) {
-            /* It's the only way we know of to get there. Go for it! */
-              float costToNode = router.routingTable.get(rec.id).cost + r.cost;
-              router.routingTable.put(r.dest, new Route(r.dest, rec.id, costToNode));
-              router.debug(String.format("found a new route to %c", r.dest));
-              updated = true;
-
-            } else if (r.cost + router.routingTable.get(rec.id).cost < router.routingTable.get(r.dest).cost) {
-            /* We've found a shorter route. Update the table. */
-              float costToNode = router.routingTable.get(rec.id).cost;
-              router.routingTable.put(r.dest, new Route(r.dest, rec.id, costToNode + r.cost));
-              router.debug(String.format("found a shorter route to %c", r.dest));
-              updated = true;
-
-            } /* Otherwise, it's just more expensive. Let it go. */
-          }
-          if (!updated) {
-            router.tableAge++;
+        synchronized (router.neighborDVs) {
+          if (!router.neighborDVs.get(dv.id).equals(dv)) {
+            /* Updated neighbor DV found */
+            router.neighborDVs.put(dv.id, dv);
+            router.stabilisationCount = 1;
           } else {
-            router.tableAge = 1;
+            /* Everything is as it was */
+            router.stabilisationCount++;
           }
+        }
 
-          if (router.tableAge == 9) {
-            for (Route r : router.routingTable.values()) {
-              router.debug(String.format("Shortest path to node %c: the next hop is %c and the cost is %s", r.dest, r.via, r.cost));
-            }
-          }
+        if (router.stabilisationCount == 9) {
+          router.printShortestRoutes();
         }
 
       } catch (IOException e) {

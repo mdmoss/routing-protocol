@@ -13,11 +13,14 @@ public class Router {
   Map<Character, Neighbor> neighbors;
   boolean poisonedReverse;
 
-  final Map<Character, Route> routingTable = new HashMap<Character, Route>();
-  int tableAge = 0;
+  final Map<Character, DistanceVector> neighborDVs = new HashMap<Character, DistanceVector>();
+  int stabilisationCount = 0;
 
   Timer update;
   DatagramSocket routeUpdateSock;
+
+  Timer hbCheck;
+  final Map<Character, Long> lastMsg = new HashMap<Character, Long>();
 
   public Router(char id, int port, Map<Character, Neighbor> neighbors, boolean poisonedReverse) throws SocketException {
     this.id = id;
@@ -26,13 +29,15 @@ public class Router {
     this.poisonedReverse = poisonedReverse;
 
     for (Neighbor n : neighbors.values()) {
-      routingTable.put(n.id, new Route(n.id, n.id, n.cost));
+      neighborDVs.put(n.id, new DistanceVector(n.id, new HashMap<Character, Float>()));
+      lastMsg.put(n.id, System.currentTimeMillis());
     }
 
     routeUpdateSock = new DatagramSocket(port);
     new Thread(new UpdateListener(this)).start();
 
     scheduleUpdate();
+    //scheduleHeartbeatCheck();
   }
 
   @Override
@@ -54,32 +59,105 @@ public class Router {
 
     update = new Timer();
     update.scheduleAtFixedRate(new TimerTask() {
+                                 @Override
+                                 public void run() {
+                                   try {
+                                     ByteArrayOutputStream out = new ByteArrayOutputStream();
+                                     ObjectOutputStream obj = new ObjectOutputStream(out);
+                                     synchronized (neighborDVs) {
+                                       HashMap<Character, Float> distances = new HashMap<Character, Float>();
+                                       for (Route r : routeSet()) {
+                                         distances.put(r.dest, r.cost);
+                                       }
+                                       DistanceVector dv = new DistanceVector(id, distances);
+                                       obj.writeObject(dv);
+                                     }
+
+                                     DatagramPacket p = new DatagramPacket(out.toByteArray(), out.size());
+
+                                     for (Neighbor n : neighbors.values()) {
+                                       DatagramSocket sock = new DatagramSocket();
+                                       p.setAddress(InetAddress.getLocalHost());
+                                       p.setPort(n.port);
+                                       sock.send(p);
+                                     }
+
+                                   } catch (IOException e) {
+                                     e.printStackTrace();
+                                     System.exit(1);
+                                   }
+                                 }
+                               },
+      0,
+      5000
+    );
+  }
+
+  /*public void scheduleHeartbeatCheck() {
+    assert(hbCheck == null);
+
+    hbCheck = new Timer();
+    hbCheck.scheduleAtFixedRate(new TimerTask() {
       @Override
       public void run() {
-        try {
-          ByteArrayOutputStream out = new ByteArrayOutputStream();
-          ObjectOutputStream obj = new ObjectOutputStream(out);
-          synchronized (routingTable) {
-            obj.writeObject(new RoutesMsg(id, new ArrayList<Route>(routingTable.values())));
+        ArrayList<Neighbor> neibs = new ArrayList<Neighbor>(neighbors.values());
+        for (Neighbor n : neibs) {
+          if (System.currentTimeMillis() - lastMsg.get(n.id) > 17000) {
+            debug(String.format("Heartbeat timeout from %c ************************************", n.id));
+            synchronized (routingTable) {
+              routingTable.put(n.id, new Route(n.id, n.id, Float.MAX_VALUE));
+              neighbors.remove(n.id);
+            }
           }
-
-          DatagramPacket p = new DatagramPacket(out.toByteArray(), out.size());
-
-          for (Neighbor n : neighbors.values()) {
-            DatagramSocket sock = new DatagramSocket();
-            p.setAddress(InetAddress.getLocalHost());
-            p.setPort(n.port);
-            sock.send(p);
-          }
-
-        } catch (IOException e) {
-          e.printStackTrace();
-          System.exit(1);
         }
       }
     },
     0,
-    5000);
+    1000);
+  }*/
+
+  private Collection<Route> routeSet() {
+    Set<Character> nodeSet = new HashSet<Character>();
+
+    /* Add everything we know about, and remove ourselves */
+    nodeSet.addAll(neighbors.keySet());
+    for (DistanceVector dv : neighborDVs.values()) {
+      nodeSet.addAll(dv.distances.keySet());
+    }
+    nodeSet.remove(this.id);
+
+    /* In-place only sort. How anyone can stand this language is beyond me */
+    ArrayList<Character> nodes = new ArrayList<Character>(nodeSet);
+    Collections.sort(nodes);
+
+    ArrayList<Route> res = new ArrayList<Route>();
+    /* Find the shortest distance and via for each node */
+    for (Character n : nodes) {
+      char via = '?';
+      float distance = Float.MAX_VALUE;
+
+      if (neighbors.containsKey(n)) {
+        via = n;
+        distance = neighbors.get(n).cost;
+      }
+
+      for (Character neighbor : neighborDVs.keySet()) {
+        if (neighborDVs.get(neighbor).distances.containsKey(n) &&
+            neighborDVs.get(neighbor).distances.get(n) + neighbors.get(neighbor).cost < distance) {
+          via = neighbor;
+          distance = neighborDVs.get(neighbor).distances.get(n) + neighbors.get(neighbor).cost;
+        }
+      }
+      res.add(new Route(n, via, distance));
+    }
+    return res;
+  }
+
+  public void printShortestRoutes() {
+    /* We assume nothing will change here, because the assumption is that the system has stabilised */
+    for (Route r : routeSet()) {
+      debug(String.format("shortest path to node %s: the next hop is %s and the cost is %s", r.dest, r.via, r.cost));
+    }
   }
 
   public void debug(String msg) {
