@@ -26,14 +26,21 @@ public class UpdateListener implements Runnable {
           if (!router.neighborDVs.get(dv.id).equals(dv)) {
             /* Updated neighbor DV found */
             router.neighborDVs.put(dv.id, dv);
-            router.stabilisationCount = 1;
+            router.neighbourStability.put(dv.id, 1);
+            router.stable = false;
           } else {
             /* Everything is as it was */
-            router.stabilisationCount++;
+            router.neighbourStability.put(dv.id, router.neighbourStability.get(dv.id) + 1);
           }
         }
 
-        if (router.stabilisationCount == 9) {
+        boolean stable = true;
+        for (Integer i : router.neighbourStability.values()) {
+          if (i < 3) {
+            stable = false;
+          }
+        }
+        if (stable) {
           router.stabilise();
         }
 

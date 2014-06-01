@@ -14,7 +14,7 @@ public class Router {
   boolean poisonedReverse;
 
   final Map<Character, DistanceVector> neighborDVs = new HashMap<Character, DistanceVector>();
-  int stabilisationCount = 0;
+  HashMap<Character, Integer> neighbourStability = new HashMap<Character, Integer>();
 
   Timer update;
   DatagramSocket routeUpdateSock;
@@ -23,6 +23,7 @@ public class Router {
   final Map<Character, Long> lastMsg = new HashMap<Character, Long>();
   ArrayList<Character> deadList = new ArrayList<Character>();
 
+  boolean stable = false;
   boolean hasStabilised = false;
 
   public Router(char id, int port, Map<Character, Neighbor> neighbors, boolean poisonedReverse) throws SocketException {
@@ -34,6 +35,7 @@ public class Router {
     for (Neighbor n : neighbors.values()) {
       neighborDVs.put(n.id, new DistanceVector(n.id, new HashMap<Character, Float>()));
       lastMsg.put(n.id, System.currentTimeMillis());
+      neighbourStability.put(n.id, 0);
     }
 
     routeUpdateSock = new DatagramSocket(port);
@@ -53,7 +55,7 @@ public class Router {
       "id=" + id +
       ", port=" + port +
       ", neighbors=" + neighbors +
-      ", poisenedReverse=" + poisonedReverse +
+      ", poisonedReverse=" + poisonedReverse +
       '}';
   }
 
@@ -215,8 +217,11 @@ public class Router {
   }
 
   public void stabilise() {
-    printShortestRoutes();
+    if (!stable) {
+      printShortestRoutes();
+    }
     hasStabilised = true;
+    stable = true;
   }
 
   private float neighborCost(Character n) {
