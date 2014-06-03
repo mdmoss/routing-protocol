@@ -33,7 +33,7 @@ public class Router {
     this.poisonedReverse = poisonedReverse;
 
     for (Neighbor n : neighbors.values()) {
-      neighborDVs.put(n.id, new DistanceVector(n.id, new HashMap<Character, Float>()));
+      neighborDVs.put(n.id, new DistanceVector(n.id, new HashMap<Character, Float>(), new HashMap<Character, String>()));
       lastMsg.put(n.id, System.currentTimeMillis());
       neighbourStability.put(n.id, 0);
     }
@@ -78,7 +78,7 @@ public class Router {
                                        for (Route r : routeSet()) {
                                          distances.put(r.dest, r.cost);
                                        }
-                                       DistanceVector dv = new DistanceVector(id, distances);
+                                       DistanceVector dv = new DistanceVector(id, distances, null);
                                        obj.writeObject(dv);
                                      }
 
@@ -124,7 +124,7 @@ public class Router {
                                              distances.put(r.dest, r.cost);
                                            }
                                          }
-                                         DistanceVector dv = new DistanceVector(id, distances);
+                                         DistanceVector dv = new DistanceVector(id, distances, null);
                                          obj.writeObject(dv);
                                        }
 
@@ -201,6 +201,48 @@ public class Router {
         }
       }
       res.add(new Route(n, via, distance));
+    }
+    return res;
+  }
+
+  private Collection<Route> pathedRouteSet(Character whomFor) {
+    Set<Character> nodeSet = new HashSet<Character>();
+
+    /* Add everything we know about, and remove ourselves and known-down nodes */
+    nodeSet.addAll(neighbors.keySet());
+    for (DistanceVector dv : neighborDVs.values()) {
+      nodeSet.addAll(dv.distances.keySet());
+    }
+    nodeSet.remove(this.id);
+    nodeSet.removeAll(deadList);
+
+    /* In-place only sort. How anyone can stand this language is beyond me */
+    ArrayList<Character> nodes = new ArrayList<Character>(nodeSet);
+    Collections.sort(nodes);
+
+    ArrayList<Route> res = new ArrayList<Route>();
+    /* Find the shortest distance and via for each node */
+    for (Character n : nodes) {
+      char via = '?';
+      float distance = Float.MAX_VALUE;
+      String path = "";
+
+      if (neighbors.containsKey(n)) {
+        via = n;
+        distance = neighborCost(n);
+        path = String.format("%c", n);
+      }
+
+      for (Character neighbor : neighborDVs.keySet()) {
+        if (neighborDVs.get(neighbor).distances.containsKey(n) &&
+          neighborDVs.get(neighbor).distances.get(n) + neighborCost(neighbor) < distance &&
+          neighborDVs.get(neighbor).paths.get(n).indexOf(this.id) == -1) {
+          via = neighbor;
+          distance = neighborDVs.get(neighbor).distances.get(n) + neighborCost(neighbor);
+          path = neighborDVs.get(neighbor).paths.get(n);
+        }
+      }
+      res.add(new PathedRoute(n, distance, path));
     }
     return res;
   }

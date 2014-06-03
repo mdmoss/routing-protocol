@@ -6,10 +6,13 @@ public class DistanceVector implements Serializable {
   char id;
   /* My cost to node `k` is `v` */
   HashMap<Character, Float> distances;
+  /* I use this path to get there */
+  HashMap<Character, String> paths;
 
-  public DistanceVector(char id, HashMap<Character, Float> distances) {
+  public DistanceVector(char id, HashMap<Character, Float> distances, HashMap<Character, String> paths) {
     this.id = id;
     this.distances = distances;
+    this.paths = paths;
   }
 
   @Override
@@ -26,6 +29,16 @@ public class DistanceVector implements Serializable {
     for (Character k : this.distances.keySet()) {
       if (!that.distances.containsKey(k) || !that.distances.get(k).equals(this.distances.get(k))) return false;
     }
+
+    if (this.paths != null && that.paths != null) {
+      for (Character k : that.paths.keySet()) {
+        if (!this.paths.containsKey(k) || !this.paths.get(k).equals(that.paths.get(k))) return false;
+      }
+      for (Character k : this.paths.keySet()) {
+        if (!that.paths.containsKey(k) || !that.paths.get(k).equals(this.paths.get(k))) return false;
+      }
+    }
+
     return true;
   }
 
