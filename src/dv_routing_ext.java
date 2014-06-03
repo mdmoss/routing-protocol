@@ -10,7 +10,7 @@ import java.util.HashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class dv_routing {
+public class dv_routing_ext {
   public static void main(String[] args) throws IOException {
     if (!(args.length == 3 || args.length == 4)) {
       System.err.println("Usage: dv_routing id port config [-p|-e]");
@@ -37,7 +37,6 @@ public class dv_routing {
       for (int i = 0; i < numNeighbors; i++) {
         Matcher m = p.matcher(reader.readLine());
         if (m.find()) {
-          /* Cost == updatedCost */
           Neighbor n = new Neighbor(m.group(1).charAt(0), Float.parseFloat(m.group(2)), Integer.parseInt(m.group(4)), Float.parseFloat(m.group(3)));
           neighbors.put(m.group(1).charAt(0), n);
         } else {

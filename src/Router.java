@@ -1,3 +1,10 @@
+/*
+ * Router.java
+ *
+ * Matthew Moss <mdm@cse.unsw.edu.au>
+ * comp3331 s1 2014
+ */
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
@@ -65,7 +72,8 @@ public class Router {
   }
 
   public void run() {
-    System.out.println(this.toString());
+    /* There's no spec provisions for clean shutdown, so this is close enough */
+    while (true);
   }
 
   public void scheduleUpdate() {
@@ -189,7 +197,7 @@ public class Router {
                                  }
                                },
       0,
-      500
+      5000
     );
   }
 
@@ -296,12 +304,12 @@ public class Router {
 
   public void printShortestRoutes() {
     for (Route r : routeSet()) {
-      debug(String.format("shortest path to node %s: the next hop is %s and the cost is %s", r.dest, r.via, r.cost));
+      System.out.println(String.format("shortest path to node %s: the next hop is %s and the cost is %s", r.dest, r.via, r.cost));
     }
   }
 
   public void debug(String msg) {
-    System.err.println(String.format("%c: %s", id, msg));
+    /* noop */
   }
 
   public void stabilise() {

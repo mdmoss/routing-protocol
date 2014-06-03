@@ -1,3 +1,10 @@
+/*
+ * Neighbour.java
+ *
+ * Matthew Moss <mdm@cse.unsw.edu.au>
+ * comp3331 s1 2014
+ */
+
 public class Neighbor {
   public char id;
   public float cost;

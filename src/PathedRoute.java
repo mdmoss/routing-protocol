@@ -1,6 +1,9 @@
-import java.io.Serializable;
-import java.util.ArrayList;
-
+/*
+ * PathedRoute.java
+ *
+ * Matthew Moss <mdm@cse.unsw.edu.au>
+ * comp3331 s1 2014
+ */
 public class PathedRoute extends Route {
   public String path;
 
