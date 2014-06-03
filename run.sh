@@ -1,3 +1,3 @@
 ./build.sh
 ./stop.sh
-./test2.sh
+./test3.sh

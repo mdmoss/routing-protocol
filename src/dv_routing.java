@@ -13,7 +13,7 @@ import java.util.regex.Pattern;
 public class dv_routing {
   public static void main(String[] args) throws IOException {
     if (!(args.length == 3 || args.length == 4)) {
-      System.err.println("Usage: dv_routing id port config [-p]");
+      System.err.println("Usage: dv_routing id port config [-p|-e]");
       System.exit(1);
     }
 
@@ -30,8 +30,9 @@ public class dv_routing {
     HashMap<Character, Neighbor> neighbors = new HashMap<Character, Neighbor>();
 
     boolean poisoned = (args.length == 4 && args[3].equals("-p"));
+    boolean extended = (args.length == 4 && args[3].equals("-e"));
 
-    if (poisoned) {
+    if (poisoned || extended) {
       Pattern p = Pattern.compile("([A-Z]) ([-+]?[0-9]*\\.?[0-9]+) ([-+]?[0-9]*\\.?[0-9]+) ([0-9]+)");
       for (int i = 0; i < numNeighbors; i++) {
         Matcher m = p.matcher(reader.readLine());
@@ -44,6 +45,7 @@ public class dv_routing {
           System.exit(1);
         }
       }
+
     } else {
       Pattern p = Pattern.compile("([A-Z]) ([-+]?[0-9]*\\.?[0-9]+) ([0-9]+)");
       for (int i = 0; i < numNeighbors; i++) {
@@ -60,6 +62,6 @@ public class dv_routing {
     }
 
 
-    new Router(id, port, neighbors, poisoned).run();
+    new Router(id, port, neighbors, poisoned, extended).run();
   }
 }

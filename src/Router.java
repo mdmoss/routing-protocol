@@ -12,6 +12,7 @@ public class Router {
   int port;
   Map<Character, Neighbor> neighbors;
   boolean poisonedReverse;
+  boolean extended;
 
   final Map<Character, DistanceVector> neighborDVs = new HashMap<Character, DistanceVector>();
   HashMap<Character, Integer> neighbourStability = new HashMap<Character, Integer>();
@@ -26,11 +27,12 @@ public class Router {
   boolean stable = false;
   boolean hasStabilised = false;
 
-  public Router(char id, int port, Map<Character, Neighbor> neighbors, boolean poisonedReverse) throws SocketException {
+  public Router(char id, int port, Map<Character, Neighbor> neighbors, boolean poisonedReverse, boolean extended) throws SocketException {
     this.id = id;
     this.port = port;
     this.neighbors = neighbors;
     this.poisonedReverse = poisonedReverse;
+    this.extended = extended;
 
     for (Neighbor n : neighbors.values()) {
       neighborDVs.put(n.id, new DistanceVector(n.id, new HashMap<Character, Float>(), new HashMap<Character, String>()));
@@ -43,6 +45,8 @@ public class Router {
 
     if (poisonedReverse) {
       schedulePoisonedUpdate();
+    } else if (extended) {
+      scheduleExtendedUpdate();
     } else {
       scheduleUpdate();
     }
@@ -52,10 +56,11 @@ public class Router {
   @Override
   public String toString() {
     return "Router{" +
-      "id=" + id +
-      ", port=" + port +
-      ", neighbors=" + neighbors +
+      "extended=" + extended +
       ", poisonedReverse=" + poisonedReverse +
+      ", neighbors=" + neighbors +
+      ", port=" + port +
+      ", id=" + id +
       '}';
   }
 
@@ -146,6 +151,48 @@ public class Router {
     );
   }
 
+  public void scheduleExtendedUpdate() {
+    assert(update == null);
+
+    update = new Timer();
+    update.scheduleAtFixedRate(new TimerTask() {
+                                 @Override
+                                 public void run() {
+
+                                   for (Neighbor n : neighbors.values()) {
+
+                                     try {
+                                       ByteArrayOutputStream out = new ByteArrayOutputStream();
+                                       ObjectOutputStream obj = new ObjectOutputStream(out);
+                                       synchronized (neighborDVs) {
+                                         HashMap<Character, Float> distances = new HashMap<Character, Float>();
+                                         HashMap<Character, String> paths = new HashMap<Character, String>();
+                                         for (PathedRoute r : pathedRouteSet(n.id)) {
+                                           distances.put(r.dest, r.cost);
+                                           paths.put(r.dest, r.path);
+                                         }
+                                         DistanceVector dv = new DistanceVector(id, distances, paths);
+                                         obj.writeObject(dv);
+                                       }
+
+                                       DatagramPacket p = new DatagramPacket(out.toByteArray(), out.size());
+                                       DatagramSocket sock = new DatagramSocket();
+                                       p.setAddress(InetAddress.getLocalHost());
+                                       p.setPort(n.port);
+                                       sock.send(p);
+
+                                     } catch (IOException e) {
+                                       e.printStackTrace();
+                                     }
+
+                                   }
+                                 }
+                               },
+      0,
+      500
+    );
+  }
+
   public void scheduleHeartbeatCheck() {
     assert(hbCheck == null);
 
@@ -205,7 +252,7 @@ public class Router {
     return res;
   }
 
-  private Collection<Route> pathedRouteSet(Character whomFor) {
+  private Collection<PathedRoute> pathedRouteSet(Character whomFor) {
     Set<Character> nodeSet = new HashSet<Character>();
 
     /* Add everything we know about, and remove ourselves and known-down nodes */
@@ -220,7 +267,7 @@ public class Router {
     ArrayList<Character> nodes = new ArrayList<Character>(nodeSet);
     Collections.sort(nodes);
 
-    ArrayList<Route> res = new ArrayList<Route>();
+    ArrayList<PathedRoute> res = new ArrayList<PathedRoute>();
     /* Find the shortest distance and via for each node */
     for (Character n : nodes) {
       char via = '?';
@@ -230,7 +277,7 @@ public class Router {
       if (neighbors.containsKey(n)) {
         via = n;
         distance = neighborCost(n);
-        path = String.format("%c", n);
+        path = "";
       }
 
       for (Character neighbor : neighborDVs.keySet()) {
@@ -242,13 +289,12 @@ public class Router {
           path = neighborDVs.get(neighbor).paths.get(n);
         }
       }
-      res.add(new PathedRoute(n, distance, path));
+      res.add(new PathedRoute(n, distance, String.format("%c%s", via, path)));
     }
     return res;
   }
 
   public void printShortestRoutes() {
-    /* We assume nothing will change here, because the assumption is that the system has stabilised */
     for (Route r : routeSet()) {
       debug(String.format("shortest path to node %s: the next hop is %s and the cost is %s", r.dest, r.via, r.cost));
     }
